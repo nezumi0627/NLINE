@@ -1,8 +1,19 @@
 #import <UIKit/UIKit.h>
 
 // --- Constants & Metadata ---
-static NSString *const NLINE_VERSION = @"1.0.2";
+static NSString *const NLINE_VERSION = @"1.0.3";
 static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
+
+// --- Forward Declarations ---
+@interface LINESettingsViewController : UIViewController
+- (void)nline_openSettings;
+@end
+
+@interface LineSettingsUI_AboutViewController : UIViewController
+@end
+
+@interface NLINEAboutViewController : UIViewController
+@end
 
 // --- Siri (Intents) Crash Bypass ---
 %hook INVocabulary
@@ -19,78 +30,8 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 - (NSString *)systemName { return @"iPadOS"; }
 %end
 
-// --- NLINE Custom Settings UI ---
+// --- UI Management ---
 
-@interface NLINEAboutViewController : UIViewController
-@end
-
-@implementation NLINEAboutViewController
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.title = @"NLINE Settings";
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
-    
-    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
-    scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self.view addSubview:scrollView];
-    
-    UIStackView *stackView = [[UIStackView alloc] init];
-    stackView.axis = UILayoutConstraintAxisVertical;
-    stackView.spacing = 20;
-    stackView.alignment = UIStackViewAlignmentCenter;
-    stackView.translatesAutoresizingMaskIntoConstraints = NO;
-    [scrollView addSubview:stackView];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [stackView.topAnchor constraintEqualToAnchor:scrollView.topAnchor constant:40],
-        [stackView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
-        [stackView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20]
-    ]];
-    
-    UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"NLINE Control Panel";
-    titleLabel.font = [UIFont boldSystemFontOfSize:24];
-    [stackView addArrangedSubview:titleLabel];
-    
-    UIButton *testBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [testBtn setTitle:@"Run Connection Test" forState:UIControlStateNormal];
-    testBtn.backgroundColor = [UIColor systemBlueColor];
-    [testBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    testBtn.layer.cornerRadius = 10;
-    [testBtn addTarget:self action:@selector(handleTest) forControlEvents:UIControlEventTouchUpInside];
-    [stackView addArrangedSubview:testBtn];
-    
-    UIButton *githubBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [githubBtn setTitle:@"GitHub: nezumi0627" forState:UIControlStateNormal];
-    [githubBtn addTarget:self action:@selector(handleGitHub) forControlEvents:UIControlEventTouchUpInside];
-    [stackView addArrangedSubview:githubBtn];
-    
-    NSString *lineVer = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-    UILabel *versionLabel = [[UILabel alloc] init];
-    versionLabel.text = [NSString stringWithFormat:@"LINE Version: %@\nNLINE Version: %@", lineVer, NLINE_VERSION];
-    versionLabel.font = [UIFont systemFontOfSize:12];
-    versionLabel.textColor = [UIColor systemGrayColor];
-    versionLabel.numberOfLines = 0;
-    versionLabel.textAlignment = NSTextAlignmentCenter;
-    [stackView addArrangedSubview:versionLabel];
-}
-- (void)handleTest {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Test" message:@"Status: Connected" preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
-}
-- (void)handleGitHub {
-    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:GITHUB_URL] options:@{} completionHandler:nil];
-}
-@end
-
-// --- Hooking & UI Inspector Logic ---
-
-static NSString *lastAppearedVC = @"Unknown";
-static NSString *lastAppearedTitle = @"None";
-static BOOL isShowingInspector = NO;
-
-// NLINEのAbout画面を構築するヘルパー
 @interface NLINEAboutViewManager : NSObject
 + (void)setupAboutUIOnViewController:(UIViewController *)vc;
 @end
@@ -100,7 +41,6 @@ static BOOL isShowingInspector = NO;
     vc.title = @"NLINE Settings";
     vc.view.backgroundColor = [UIColor systemBackgroundColor];
     
-    // 既存のサブビューをすべて削除（強制書き換え）
     for (UIView *subview in vc.view.subviews) {
         [subview removeFromSuperview];
     }
@@ -122,7 +62,6 @@ static BOOL isShowingInspector = NO;
         [stackView.trailingAnchor constraintEqualToAnchor:vc.view.trailingAnchor constant:-20]
     ]];
     
-    // NLINE ロゴ風ラベル
     UILabel *logoLabel = [[UILabel alloc] init];
     logoLabel.text = @"NLINE";
     logoLabel.font = [UIFont systemFontOfSize:40 weight:UIFontWeightHeavy];
@@ -135,24 +74,21 @@ static BOOL isShowingInspector = NO;
     subLabel.textColor = [UIColor systemGrayColor];
     [stackView addArrangedSubview:subLabel];
     
-    // テストボタン
     UIButton *testBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [testBtn setTitle:@"Connection Test" forState:UIControlStateNormal];
     testBtn.backgroundColor = [UIColor systemGreenColor];
     [testBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     testBtn.layer.cornerRadius = 12;
     testBtn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
-    [testBtn setContentEdgeInsets:UIEdgeInsetsMake(10, 30, 10, 30)];
+    // Removed deprecated setContentEdgeInsets
     [testBtn addTarget:vc action:@selector(nline_handleTest) forControlEvents:UIControlEventTouchUpInside];
     [stackView addArrangedSubview:testBtn];
     
-    // GitHubボタン
     UIButton *githubBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [githubBtn setTitle:@"GitHub: nezumi0627" forState:UIControlStateNormal];
     [githubBtn addTarget:vc action:@selector(nline_handleGitHub) forControlEvents:UIControlEventTouchUpInside];
     [stackView addArrangedSubview:githubBtn];
     
-    // バージョン情報
     NSString *lineVer = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     UILabel *versionLabel = [[UILabel alloc] init];
     versionLabel.text = [NSString stringWithFormat:@"LINE Version: %@\nNLINE Version: %@", lineVer, NLINE_VERSION];
@@ -164,7 +100,18 @@ static BOOL isShowingInspector = NO;
 }
 @end
 
-// --- 各種 ViewController のフック ---
+@implementation NLINEAboutViewController
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [NLINEAboutViewManager setupAboutUIOnViewController:self];
+}
+@end
+
+// --- Hooks ---
+
+static NSString *lastAppearedVC = @"Unknown";
+static NSString *lastAppearedTitle = @"None";
+static BOOL isShowingInspector = NO;
 
 %hook UIViewController
 
@@ -193,17 +140,13 @@ static BOOL isShowingInspector = NO;
 
 %end
 
-// 「LINE について」の画面を乗っ取る
 %hook LineSettingsUI_AboutViewController
-
 - (void)viewWillAppear:(BOOL)animated {
     %orig;
     [NLINEAboutViewManager setupAboutUIOnViewController:self];
 }
-
 %end
 
-// 設定メイン画面のフック（念のため）
 %hook LINESettingsViewController
 - (void)viewDidLoad {
     %orig;
@@ -216,14 +159,6 @@ static BOOL isShowingInspector = NO;
 }
 %end
 
-// 自作用VCも同じ中身にする
-@implementation NLINEAboutViewController
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    [NLINEAboutViewManager setupAboutUIOnViewController:self];
-}
-@end
-
 // --- Floating Inspector ---
 
 @interface NLINEInspector : NSObject
@@ -231,19 +166,21 @@ static BOOL isShowingInspector = NO;
 @end
 
 @implementation NLINEInspector
-
 + (void)identify {
+    isShowingInspector = YES;
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     UIWindow *window = [UIApplication sharedApplication].keyWindow;
     if (!window) window = [[UIApplication sharedApplication].windows firstObject];
     
-    NSString *msg = [NSString stringWithFormat:@"Target VC: LINESettingsViewController\n\nLast Tracked VC:\n%@\n\nTitle: %@", 
+    NSString *msg = [NSString stringWithFormat:@"Last Tracked VC:\n%@\n\nTitle: %@", 
                     lastAppearedVC, 
                     lastAppearedTitle];
     
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Inspector" message:msg preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        isShowingInspector = NO;
+    }]];
     
     UIViewController *top = window.rootViewController;
     while (top.presentedViewController) top = top.presentedViewController;
@@ -253,7 +190,7 @@ static BOOL isShowingInspector = NO;
 @end
 
 %ctor {
-    NSLog(@"[NLINE] Tweak loaded with Floating Inspector.");
+    NSLog(@"[NLINE] Tweak loaded safely.");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         #pragma clang diagnostic push
@@ -262,17 +199,15 @@ static BOOL isShowingInspector = NO;
         if (!window) window = [[UIApplication sharedApplication].windows firstObject];
         
         UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-        btn.frame = CGRectMake(10, 50, 70, 30);
+        btn.frame = CGRectMake(10, 60, 70, 30);
         btn.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.6];
         [btn setTitle:@"Identify" forState:UIControlStateNormal];
         [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
         btn.titleLabel.font = [UIFont systemFontOfSize:12];
         btn.layer.cornerRadius = 15;
         
-        // 浮遊ボタンを最前面に追加
         [window addSubview:btn];
         [btn addTarget:[NLINEInspector class] action:@selector(identify) forControlEvents:UIControlEventTouchUpInside];
         #pragma clang diagnostic pop
     });
 }
-
