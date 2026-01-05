@@ -1,0 +1,6 @@
+Package: com.yourname.nline
+Name: NLINE
+Author: YourName
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Ad-block and Read Receipt features for LINE on LiveContainer.

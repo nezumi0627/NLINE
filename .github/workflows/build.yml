@@ -1,0 +1,41 @@
+name: Build LINETweak for LiveContainer
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1
+
+      - name: Build Tweak
+        run: |
+          export THEOS_PACKAGE_SCHEME=rootless
+          make package FINALPACKAGE=1
+        
+      - name: Patch for LiveContainer (Fix rpath)
+        run: |
+          # ビルドされたdylibを探す
+          DYLIB_PATH=$(find .theos/obj -name "*.dylib")
+          echo "Target Dylib: $DYLIB_PATH"
+          
+          # Substrateの参照先をLiveContainer内の相対パス(@rpath)に変更する
+          # これをしないとLiveContainerで読み込みエラーになります
+          install_name_tool -change /usr/lib/libsubstrate.dylib @rpath/libsubstrate.dylib "$DYLIB_PATH" || true
+          install_name_tool -change /Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate @rpath/CydiaSubstrate.framework/CydiaSubstrate "$DYLIB_PATH" || true
+          
+          # 確認
+          otool -L "$DYLIB_PATH"
+
+      - name: Upload Dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: LINETweak-LiveContainer
+          path: .theos/obj/**/*.dylib
