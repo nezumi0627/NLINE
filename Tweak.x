@@ -15,9 +15,30 @@
         [alert addAction:okAction];
         
         // 最前面のViewControllerを取得して表示
-        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
+                    UIWindowScene *windowScene = (UIWindowScene *)scene;
+                    for (UIWindow *w in windowScene.windows) {
+                        if (w.isKeyWindow) {
+                            window = w;
+                            break;
+                        }
+                    }
+                }
+                if (window) break;
+            }
+        }
+        
         if (!window) {
-            window = [[UIApplication sharedApplication].windows firstObject];
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            window = [UIApplication sharedApplication].keyWindow;
+            if (!window) {
+                window = [[UIApplication sharedApplication].windows firstObject];
+            }
+            #pragma clang diagnostic pop
         }
         
         UIViewController *rootViewController = window.rootViewController;
