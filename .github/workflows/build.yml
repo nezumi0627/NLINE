@@ -22,17 +22,13 @@ jobs:
         
       - name: Patch for LiveContainer (Fix rpath)
         run: |
-          # ビルドされたdylibを探す
-          DYLIB_PATH=$(find .theos/obj -name "*.dylib")
-          echo "Target Dylib: $DYLIB_PATH"
-          
-          # Substrateの参照先をLiveContainer内の相対パス(@rpath)に変更する
-          # これをしないとLiveContainerで読み込みエラーになります
-          install_name_tool -change /usr/lib/libsubstrate.dylib @rpath/libsubstrate.dylib "$DYLIB_PATH" || true
-          install_name_tool -change /Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate @rpath/CydiaSubstrate.framework/CydiaSubstrate "$DYLIB_PATH" || true
-          
-          # 確認
-          otool -L "$DYLIB_PATH"
+          # 全てのビルド済みdylib（各アーキおよび結合済み）に対してパス修正を行う
+          find .theos/obj -name "*.dylib" | while read -r dylib; do
+            echo "Patching: $dylib"
+            install_name_tool -change /usr/lib/libsubstrate.dylib @rpath/libsubstrate.dylib "$dylib" || true
+            install_name_tool -change /Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate @rpath/CydiaSubstrate.framework/CydiaSubstrate "$dylib" || true
+            otool -L "$dylib"
+          done
 
       - name: Upload Dylib
         uses: actions/upload-artifact@v4
