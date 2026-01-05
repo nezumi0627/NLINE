@@ -1,37 +1,37 @@
 #import <UIKit/UIKit.h>
 
-// クラスがUIViewを継承していることを明示して、.hidden プロパティを使えるようにします
-@interface NLBannerAdView : UIView
-@end
-
-// --- 広告ブロックセクション ---
-// LINEの広告管理クラス等をフックして非表示にします
-%hook NLAdManager 
-- (void)showAd:(id)arg1 {
-    // 広告を表示する処理をスキップ
-    return;
-}
-%end
-
-%hook NLBannerAdView
-- (void)layoutSubviews {
-    %orig;
-    self.hidden = YES; // バナーを強制非表示
-}
-%end
-
-// --- 既読回避セクション ---
-// 既読を送るリクエストをフックして中断します
-// 注意: メソッド名はLINEのバージョンにより変わる可能性があります
-%hook MessageService
-- (void)sendReadReceipt:(id)arg1 {
-    // 既読通知を送らない
-    NSLog(@"[NLINE] Blocked sending read receipt.");
-    return;
-}
-%end
-
-// 動作確認用
 %ctor {
-    NSLog(@"[NLINE] Loaded successfully in LiveContainer!");
+    NSLog(@"[NLINE] Tweak loaded! Preparing alert...");
+    
+    // アプリ起動後に少し待ってからアラートを表示（UIの準備を待つため）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE"
+                                                                       message:@"Tweak loaded successfully in jp.naver.line!"
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"OK" 
+                                                           style:UIAlertActionStyleDefault 
+                                                         handler:nil];
+        [alert addAction:okAction];
+        
+        // 最前面のViewControllerを取得して表示
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        if (!window) {
+            window = [[UIApplication sharedApplication].windows firstObject];
+        }
+        
+        UIViewController *rootViewController = window.rootViewController;
+        if (rootViewController) {
+            // すでに別のVCがプレゼンされている場合は、その上で表示するようにする
+            UIViewController *topController = rootViewController;
+            while (topController.presentedViewController) {
+                topController = topController.presentedViewController;
+            }
+            [topController presentViewController:alert animated:YES completion:nil];
+            NSLog(@"[NLINE] Alert presented.");
+        } else {
+            NSLog(@"[NLINE] Error: Could not find rootViewController.");
+        }
+    });
 }
+
