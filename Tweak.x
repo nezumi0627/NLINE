@@ -1,5 +1,9 @@
 #import <UIKit/UIKit.h>
 
+// クラスがUIViewを継承していることを明示して、.hidden プロパティを使えるようにします
+@interface NLBannerAdView : UIView
+@end
+
 // --- 広告ブロックセクション ---
 // LINEの広告管理クラス等をフックして非表示にします
 %hook NLAdManager 
