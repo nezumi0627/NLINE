@@ -118,18 +118,24 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 
 %end
 
-// --- Initialization ---
+// --- Initialization & UI Inspector ---
+
+%hook UIViewController
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    NSLog(@"[NLINE] VC Appeared: %@", NSStringFromClass([self class]));
+}
+%end
 
 %ctor {
-    NSLog(@"[NLINE] Tweak loaded with Settings UI.");
+    NSLog(@"[NLINE] Tweak loaded with UI Inspector.");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
         if (@available(iOS 13.0, *)) {
             for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
                 if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
-                    UIWindowScene *windowScene = (UIWindowScene *)scene;
-                    window = windowScene.windows.firstObject;
+                    window = [(UIWindowScene *)scene windows].firstObject;
                     break;
                 }
             }
@@ -142,7 +148,32 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
         }
         
         if (window && window.rootViewController) {
-            NSLog(@"[NLINE] Loaded successfully.");
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Active"
+                                                                           message:@"iPad Mode & UI Inspector enabled.\n\nInstructions:\n1. Check Logs for 'VC Appeared'\n2. Use the button below to identify the current screen."
+                                                                    preferredStyle:UIAlertControllerStyleAlert];
+            
+            [alert addAction:[UIAlertAction actionWithTitle:@"Identify Top VC" style:UIControlEventTouchDown handler:^(UIAlertAction *action) {
+                UIWindow *win = [UIApplication sharedApplication].keyWindow;
+                UIViewController *top = win.rootViewController;
+                while (top.presentedViewController) top = top.presentedViewController;
+                
+                // If it's a navigation controller, get the top visible one
+                if ([top isKindOfClass:[UINavigationController class]]) {
+                    top = [(UINavigationController *)top visibleViewController];
+                }
+                
+                NSString *className = NSStringFromClass([top class]);
+                UIAlertController *idAlert = [UIAlertController alertControllerWithTitle:@"Current VC" message:className preferredStyle:UIAlertControllerStyleAlert];
+                [idAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:idAlert animated:YES completion:nil];
+            }]];
+            
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            
+            UIViewController *topVC = window.rootViewController;
+            while (topVC.presentedViewController) topVC = topVC.presentedViewController;
+            [topVC presentViewController:alert animated:YES completion:nil];
+            NSLog(@"[NLINE] Startup alert presented.");
         }
     });
 }
