@@ -152,8 +152,12 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
                                                                            message:@"iPad Mode & UI Inspector enabled.\n\nInstructions:\n1. Check Logs for 'VC Appeared'\n2. Use the button below to identify the current screen."
                                                                     preferredStyle:UIAlertControllerStyleAlert];
             
-            [alert addAction:[UIAlertAction actionWithTitle:@"Identify Top VC" style:UIControlEventTouchDown handler:^(UIAlertAction *action) {
+            [alert addAction:[UIAlertAction actionWithTitle:@"Identify Top VC" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                #pragma clang diagnostic push
+                #pragma clang diagnostic ignored "-Wdeprecated-declarations"
                 UIWindow *win = [UIApplication sharedApplication].keyWindow;
+                if (!win) win = [[UIApplication sharedApplication].windows firstObject];
+                
                 UIViewController *top = win.rootViewController;
                 while (top.presentedViewController) top = top.presentedViewController;
                 
@@ -165,7 +169,9 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
                 NSString *className = NSStringFromClass([top class]);
                 UIAlertController *idAlert = [UIAlertController alertControllerWithTitle:@"Current VC" message:className preferredStyle:UIAlertControllerStyleAlert];
                 [idAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:idAlert animated:YES completion:nil];
+                
+                [win.rootViewController presentViewController:idAlert animated:YES completion:nil];
+                #pragma clang diagnostic pop
             }]];
             
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
