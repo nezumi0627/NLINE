@@ -88,60 +88,141 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 
 static NSString *lastAppearedVC = @"Unknown";
 static NSString *lastAppearedTitle = @"None";
+static BOOL isShowingInspector = NO;
 
-@interface UIViewController (NLINE)
-- (void)nline_openSettings;
+// NLINEのAbout画面を構築するヘルパー
+@interface NLINEAboutViewManager : NSObject
++ (void)setupAboutUIOnViewController:(UIViewController *)vc;
 @end
 
-// LINEの設定画面のクラスをあらかじめ宣言
-@interface LINESettingsViewController : UIViewController
+@implementation NLINEAboutViewManager
++ (void)setupAboutUIOnViewController:(UIViewController *)vc {
+    vc.title = @"NLINE Settings";
+    vc.view.backgroundColor = [UIColor systemBackgroundColor];
+    
+    // 既存のサブビューをすべて削除（強制書き換え）
+    for (UIView *subview in vc.view.subviews) {
+        [subview removeFromSuperview];
+    }
+    
+    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:vc.view.bounds];
+    scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [vc.view addSubview:scrollView];
+    
+    UIStackView *stackView = [[UIStackView alloc] init];
+    stackView.axis = UILayoutConstraintAxisVertical;
+    stackView.spacing = 25;
+    stackView.alignment = UIStackViewAlignmentCenter;
+    stackView.translatesAutoresizingMaskIntoConstraints = NO;
+    [scrollView addSubview:stackView];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [stackView.topAnchor constraintEqualToAnchor:scrollView.topAnchor constant:50],
+        [stackView.leadingAnchor constraintEqualToAnchor:vc.view.leadingAnchor constant:20],
+        [stackView.trailingAnchor constraintEqualToAnchor:vc.view.trailingAnchor constant:-20]
+    ]];
+    
+    // NLINE ロゴ風ラベル
+    UILabel *logoLabel = [[UILabel alloc] init];
+    logoLabel.text = @"NLINE";
+    logoLabel.font = [UIFont systemFontOfSize:40 weight:UIFontWeightHeavy];
+    logoLabel.textColor = [UIColor systemGreenColor];
+    [stackView addArrangedSubview:logoLabel];
+    
+    UILabel *subLabel = [[UILabel alloc] init];
+    subLabel.text = @"Premium Tweak for LiveContainer";
+    subLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
+    subLabel.textColor = [UIColor systemGrayColor];
+    [stackView addArrangedSubview:subLabel];
+    
+    // テストボタン
+    UIButton *testBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    [testBtn setTitle:@"Connection Test" forState:UIControlStateNormal];
+    testBtn.backgroundColor = [UIColor systemGreenColor];
+    [testBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    testBtn.layer.cornerRadius = 12;
+    testBtn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
+    [testBtn setContentEdgeInsets:UIEdgeInsetsMake(10, 30, 10, 30)];
+    [testBtn addTarget:vc action:@selector(nline_handleTest) forControlEvents:UIControlEventTouchUpInside];
+    [stackView addArrangedSubview:testBtn];
+    
+    // GitHubボタン
+    UIButton *githubBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    [githubBtn setTitle:@"GitHub: nezumi0627" forState:UIControlStateNormal];
+    [githubBtn addTarget:vc action:@selector(nline_handleGitHub) forControlEvents:UIControlEventTouchUpInside];
+    [stackView addArrangedSubview:githubBtn];
+    
+    // バージョン情報
+    NSString *lineVer = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    UILabel *versionLabel = [[UILabel alloc] init];
+    versionLabel.text = [NSString stringWithFormat:@"LINE Version: %@\nNLINE Version: %@", lineVer, NLINE_VERSION];
+    versionLabel.font = [UIFont systemFontOfSize:11];
+    versionLabel.textColor = [UIColor lightGrayColor];
+    versionLabel.numberOfLines = 0;
+    versionLabel.textAlignment = NSTextAlignmentCenter;
+    [stackView addArrangedSubview:versionLabel];
+}
 @end
+
+// --- 各種 ViewController のフック ---
 
 %hook UIViewController
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    NSString *className = NSStringFromClass([self class]);
+    if (isShowingInspector) return;
     
-    // インスペクター自身やアラートを無視する
+    NSString *className = NSStringFromClass([self class]);
     if ([className hasPrefix:@"UIAlert"] || [className hasPrefix:@"NLINE"]) return;
     
     lastAppearedVC = className;
     lastAppearedTitle = self.title ?: self.navigationItem.title ?: @"(No Title)";
-    
-    NSLog(@"[NLINE] Tracked: %@", lastAppearedVC);
 }
 
+%new
+- (void)nline_handleTest {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Test" message:@"Device Spoofing: iPad Mode Active\nBypass: Siri Intents Enabled" preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+%new
+- (void)nline_handleGitHub {
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:GITHUB_URL] options:@{} completionHandler:nil];
+}
+
+%end
+
+// 「LINE について」の画面を乗っ取る
+%hook LineSettingsUI_AboutViewController
+
+- (void)viewWillAppear:(BOOL)animated {
+    %orig;
+    [NLINEAboutViewManager setupAboutUIOnViewController:self];
+}
+
+%end
+
+// 設定メイン画面のフック（念のため）
+%hook LINESettingsViewController
+- (void)viewDidLoad {
+    %orig;
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(nline_openSettings)];
+}
 %new
 - (void)nline_openSettings {
     NLINEAboutViewController *vc = [[NLINEAboutViewController alloc] init];
     [self.navigationController pushViewController:vc animated:YES];
 }
-
 %end
 
-// --- 特定のクラス（LINESettingsViewController）を直接フック ---
-
-%hook LINESettingsViewController
-
-- (void)viewDidLoad {
-    %orig;
-    UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(nline_openSettings)];
-    self.navigationItem.rightBarButtonItem = nlineBtn;
+// 自作用VCも同じ中身にする
+@implementation NLINEAboutViewController
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [NLINEAboutViewManager setupAboutUIOnViewController:self];
 }
-
-// テーブルビューの選択をフックして「LINEについて」の遷移を奪う
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    // LINEの内部構造により indexPath が変わる可能性があるが、
-    // まずはフックが動くか確認するため、ログを出力しつつ元の処理を呼ぶ
-    NSLog(@"[NLINE] Selected Row: %ld in Section: %ld", (long)indexPath.row, (long)indexPath.section);
-    
-    // 特定の条件（例: 最後のセクションの最後の行など）で自作画面を開くロジックをここに書ける
-    // 現在は右上ボタンでの遷移を優先し、ここはオリジナルのままにします
-    %orig;
-}
-
-%end
+@end
 
 // --- Floating Inspector ---
 
