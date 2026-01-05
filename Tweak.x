@@ -1,5 +1,13 @@
 #import <UIKit/UIKit.h>
 
+// --- Siri (Intents) Crash Bypass ---
+// Prevent crash caused by missing com.apple.developer.siri entitlement in sideloaded environments.
+%hook INVocabulary
++ (id)sharedVocabulary { return nil; }
+- (void)setVocabularyStrings:(id)arg1 ofType:(long long)arg2 { return; }
+- (void)removeAllVocabularyStrings { return; }
+%end
+
 // --- Device Spoofing (iPad Mode) ---
 
 %hook UIDevice
@@ -25,7 +33,7 @@
 // --- Initialization ---
 
 %ctor {
-    NSLog(@"[NLINE] Tweak loaded safely.");
+    NSLog(@"[NLINE] Tweak loaded safely with Siri bypass.");
     
     // UIの準備を待つため10秒待機
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -48,8 +56,8 @@
         }
         
         if (window && window.rootViewController) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Spoofing"
-                                                                           message:@"Device spoofed as iPad.\nPlease check if Secondary Login is enabled."
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Active"
+                                                                           message:@"iPad Spoofing & Siri Bypass enabled."
                                                                     preferredStyle:UIAlertControllerStyleAlert];
             
             [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
