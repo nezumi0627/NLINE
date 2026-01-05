@@ -86,6 +86,9 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 
 // --- Hooking & UI Inspector Logic ---
 
+static NSString *lastAppearedVC = @"Unknown";
+static NSString *lastAppearedTitle = @"None";
+
 @interface UIViewController (NLINE)
 - (void)nline_openSettings;
 @end
@@ -94,9 +97,14 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    NSString *title = self.title;
-    // タイトルが「設定」または「Settings」の場合、右上にボタンを追加
-    if ([title isEqualToString:@"設定"] || [title isEqualToString:@"Settings"] || [title isEqualToString:@"Setting"]) {
+    lastAppearedVC = NSStringFromClass([self class]);
+    lastAppearedTitle = self.title ?: self.navigationItem.title ?: @"(No Title)";
+    
+    NSLog(@"[NLINE] Tracked: %@ (Title: %@)", lastAppearedVC, lastAppearedTitle);
+    
+    // タイトル判定の強化
+    NSString *t = lastAppearedTitle;
+    if ([t containsString:@"設定"] || [t containsString:@"Settings"] || [t containsString:@"Setting"]) {
         UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(nline_openSettings)];
         self.navigationItem.rightBarButtonItem = nlineBtn;
     }
@@ -114,7 +122,6 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 
 @interface NLINEInspector : NSObject
 + (void)identify;
-+ (UIViewController *)topViewControllerWithRootViewController:(UIViewController *)root;
 @end
 
 @implementation NLINEInspector
@@ -125,26 +132,19 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
     UIWindow *window = [UIApplication sharedApplication].keyWindow;
     if (!window) window = [[UIApplication sharedApplication].windows firstObject];
     
-    UIViewController *top = [self topViewControllerWithRootViewController:window.rootViewController];
-    NSString *className = NSStringFromClass([top class]);
+    NSString *msg = [NSString stringWithFormat:@"Last Tracked VC:\n%@\n\nTitle: %@\n\nIs on Nav: %@", 
+                    lastAppearedVC, 
+                    lastAppearedTitle,
+                    [window.rootViewController navigationController] ? @"YES" : @"NO"];
     
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Inspector" message:[NSString stringWithFormat:@"Current VC: %@", className] preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Inspector" message:msg preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    
+    // 最前面に表示するために現在のrootViewControllerを使用
+    UIViewController *top = window.rootViewController;
+    while (top.presentedViewController) top = top.presentedViewController;
     [top presentViewController:alert animated:YES completion:nil];
     #pragma clang diagnostic pop
-}
-
-+ (UIViewController *)topViewControllerWithRootViewController:(UIViewController *)root {
-    if ([root isKindOfClass:[UITabBarController class]]) {
-        UITabBarController *tab = (UITabBarController *)root;
-        return [self topViewControllerWithRootViewController:tab.selectedViewController];
-    } else if ([root isKindOfClass:[UINavigationController class]]) {
-        UINavigationController *nav = (UINavigationController *)root;
-        return [self topViewControllerWithRootViewController:nav.visibleViewController];
-    } else if (root.presentedViewController) {
-        return [self topViewControllerWithRootViewController:root.presentedViewController];
-    }
-    return root;
 }
 @end
 
