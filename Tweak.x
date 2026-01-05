@@ -93,27 +93,52 @@ static NSString *lastAppearedTitle = @"None";
 - (void)nline_openSettings;
 @end
 
+// LINEの設定画面のクラスをあらかじめ宣言
+@interface LINESettingsViewController : UIViewController
+@end
+
 %hook UIViewController
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
-    lastAppearedVC = NSStringFromClass([self class]);
+    NSString *className = NSStringFromClass([self class]);
+    
+    // インスペクター自身やアラートを無視する
+    if ([className hasPrefix:@"UIAlert"] || [className hasPrefix:@"NLINE"]) return;
+    
+    lastAppearedVC = className;
     lastAppearedTitle = self.title ?: self.navigationItem.title ?: @"(No Title)";
     
-    NSLog(@"[NLINE] Tracked: %@ (Title: %@)", lastAppearedVC, lastAppearedTitle);
-    
-    // タイトル判定の強化
-    NSString *t = lastAppearedTitle;
-    if ([t containsString:@"設定"] || [t containsString:@"Settings"] || [t containsString:@"Setting"]) {
-        UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(nline_openSettings)];
-        self.navigationItem.rightBarButtonItem = nlineBtn;
-    }
+    NSLog(@"[NLINE] Tracked: %@", lastAppearedVC);
 }
 
 %new
 - (void)nline_openSettings {
     NLINEAboutViewController *vc = [[NLINEAboutViewController alloc] init];
     [self.navigationController pushViewController:vc animated:YES];
+}
+
+%end
+
+// --- 特定のクラス（LINESettingsViewController）を直接フック ---
+
+%hook LINESettingsViewController
+
+- (void)viewDidLoad {
+    %orig;
+    UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(nline_openSettings)];
+    self.navigationItem.rightBarButtonItem = nlineBtn;
+}
+
+// テーブルビューの選択をフックして「LINEについて」の遷移を奪う
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    // LINEの内部構造により indexPath が変わる可能性があるが、
+    // まずはフックが動くか確認するため、ログを出力しつつ元の処理を呼ぶ
+    NSLog(@"[NLINE] Selected Row: %ld in Section: %ld", (long)indexPath.row, (long)indexPath.section);
+    
+    // 特定の条件（例: 最後のセクションの最後の行など）で自作画面を開くロジックをここに書ける
+    // 現在は右上ボタンでの遷移を優先し、ここはオリジナルのままにします
+    %orig;
 }
 
 %end
@@ -132,15 +157,13 @@ static NSString *lastAppearedTitle = @"None";
     UIWindow *window = [UIApplication sharedApplication].keyWindow;
     if (!window) window = [[UIApplication sharedApplication].windows firstObject];
     
-    NSString *msg = [NSString stringWithFormat:@"Last Tracked VC:\n%@\n\nTitle: %@\n\nIs on Nav: %@", 
+    NSString *msg = [NSString stringWithFormat:@"Target VC: LINESettingsViewController\n\nLast Tracked VC:\n%@\n\nTitle: %@", 
                     lastAppearedVC, 
-                    lastAppearedTitle,
-                    [window.rootViewController navigationController] ? @"YES" : @"NO"];
+                    lastAppearedTitle];
     
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Inspector" message:msg preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
     
-    // 最前面に表示するために現在のrootViewControllerを使用
     UIViewController *top = window.rootViewController;
     while (top.presentedViewController) top = top.presentedViewController;
     [top presentViewController:alert animated:YES completion:nil];
