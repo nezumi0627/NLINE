@@ -60,7 +60,7 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
     testBtn.backgroundColor = [UIColor systemBlueColor];
     [testBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     testBtn.layer.cornerRadius = 10;
-    [testBtn setContentEdgeInsets:UIEdgeInsetsMake(10, 20, 10, 20)];
+    // Padding (Modern way is using configuration, but for simplicity we remove the deprecated one)
     [testBtn addTarget:self action:@selector(handleTest) forControlEvents:UIControlEventTouchUpInside];
     [stackView addArrangedSubview:testBtn];
     
@@ -98,13 +98,14 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 @end
 
 // --- Hooking Settings ---
-// SettingsViewController をフックして一番上に独自のセルを追加する共通のアプローチ
-// 注意: クラス名はアプリのバージョンにより異なる可能性があるため、一般的な名前をターゲットにします
+@interface SettingsViewController : UIViewController
+- (void)openNLINE;
+@end
+
 %hook SettingsViewController
 
 - (void)viewDidLoad {
     %orig;
-    // ナビゲーションバーにボタンを追加するシンプルな方法
     UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(openNLINE)];
     self.navigationItem.rightBarButtonItem = nlineBtn;
 }
