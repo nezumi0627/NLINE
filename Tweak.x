@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // --- Constants & Metadata ---
-static NSString *const NLINE_VERSION = @"1.0.1";
+static NSString *const NLINE_VERSION = @"1.0.2";
 static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 
 // --- Siri (Intents) Crash Bypass ---
@@ -25,7 +25,6 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
 @end
 
 @implementation NLINEAboutViewController
-
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = @"NLINE Settings";
@@ -48,33 +47,24 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
         [stackView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20]
     ]];
     
-    // Title
     UILabel *titleLabel = [[UILabel alloc] init];
     titleLabel.text = @"NLINE Control Panel";
     titleLabel.font = [UIFont boldSystemFontOfSize:24];
     [stackView addArrangedSubview:titleLabel];
     
-    // Test Button
     UIButton *testBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [testBtn setTitle:@"Run Connection Test" forState:UIControlStateNormal];
     testBtn.backgroundColor = [UIColor systemBlueColor];
     [testBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     testBtn.layer.cornerRadius = 10;
-    // Padding (Modern way is using configuration, but for simplicity we remove the deprecated one)
     [testBtn addTarget:self action:@selector(handleTest) forControlEvents:UIControlEventTouchUpInside];
     [stackView addArrangedSubview:testBtn];
     
-    // GitHub Button
     UIButton *githubBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [githubBtn setTitle:@"GitHub: nezumi0627" forState:UIControlStateNormal];
     [githubBtn addTarget:self action:@selector(handleGitHub) forControlEvents:UIControlEventTouchUpInside];
     [stackView addArrangedSubview:githubBtn];
     
-    // Spacer
-    UIView *spacer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 1, 40)];
-    [stackView addArrangedSubview:spacer];
-    
-    // Versions
     NSString *lineVer = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     UILabel *versionLabel = [[UILabel alloc] init];
     versionLabel.text = [NSString stringWithFormat:@"LINE Version: %@\nNLINE Version: %@", lineVer, NLINE_VERSION];
@@ -84,103 +74,101 @@ static NSString *const GITHUB_URL = @"https://github.com/nezumi0627/NLINE";
     versionLabel.textAlignment = NSTextAlignmentCenter;
     [stackView addArrangedSubview:versionLabel];
 }
-
 - (void)handleTest {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Test" message:@"Hook status: Normal\nDevice Spoofing: Active" preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Test" message:@"Status: Connected" preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
-
 - (void)handleGitHub {
     [[UIApplication sharedApplication] openURL:[NSURL URLWithString:GITHUB_URL] options:@{} completionHandler:nil];
 }
-
 @end
 
-// --- Hooking Settings ---
-@interface SettingsViewController : UIViewController
-- (void)openNLINE;
+// --- Hooking & UI Inspector Logic ---
+
+@interface UIViewController (NLINE)
+- (void)nline_openSettings;
 @end
 
-%hook SettingsViewController
+%hook UIViewController
 
-- (void)viewDidLoad {
+- (void)viewDidAppear:(BOOL)animated {
     %orig;
-    UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(openNLINE)];
-    self.navigationItem.rightBarButtonItem = nlineBtn;
+    NSString *title = self.title;
+    // タイトルが「設定」または「Settings」の場合、右上にボタンを追加
+    if ([title isEqualToString:@"設定"] || [title isEqualToString:@"Settings"] || [title isEqualToString:@"Setting"]) {
+        UIBarButtonItem *nlineBtn = [[UIBarButtonItem alloc] initWithTitle:@"NLINE" style:UIBarButtonItemStylePlain target:self action:@selector(nline_openSettings)];
+        self.navigationItem.rightBarButtonItem = nlineBtn;
+    }
 }
 
 %new
-- (void)openNLINE {
+- (void)nline_openSettings {
     NLINEAboutViewController *vc = [[NLINEAboutViewController alloc] init];
     [self.navigationController pushViewController:vc animated:YES];
 }
 
 %end
 
-// --- Initialization & UI Inspector ---
+// --- Floating Inspector ---
 
-%hook UIViewController
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    NSLog(@"[NLINE] VC Appeared: %@", NSStringFromClass([self class]));
+@interface NLINEInspector : NSObject
++ (void)identify;
++ (UIViewController *)topViewControllerWithRootViewController:(UIViewController *)root;
+@end
+
+@implementation NLINEInspector
+
++ (void)identify {
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    UIWindow *window = [UIApplication sharedApplication].keyWindow;
+    if (!window) window = [[UIApplication sharedApplication].windows firstObject];
+    
+    UIViewController *top = [self topViewControllerWithRootViewController:window.rootViewController];
+    NSString *className = NSStringFromClass([top class]);
+    
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Inspector" message:[NSString stringWithFormat:@"Current VC: %@", className] preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [top presentViewController:alert animated:YES completion:nil];
+    #pragma clang diagnostic pop
 }
-%end
+
++ (UIViewController *)topViewControllerWithRootViewController:(UIViewController *)root {
+    if ([root isKindOfClass:[UITabBarController class]]) {
+        UITabBarController *tab = (UITabBarController *)root;
+        return [self topViewControllerWithRootViewController:tab.selectedViewController];
+    } else if ([root isKindOfClass:[UINavigationController class]]) {
+        UINavigationController *nav = (UINavigationController *)root;
+        return [self topViewControllerWithRootViewController:nav.visibleViewController];
+    } else if (root.presentedViewController) {
+        return [self topViewControllerWithRootViewController:root.presentedViewController];
+    }
+    return root;
+}
+@end
 
 %ctor {
-    NSLog(@"[NLINE] Tweak loaded with UI Inspector.");
+    NSLog(@"[NLINE] Tweak loaded with Floating Inspector.");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
-        if (@available(iOS 13.0, *)) {
-            for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
-                    window = [(UIWindowScene *)scene windows].firstObject;
-                    break;
-                }
-            }
-        }
-        if (!window) {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            window = [UIApplication sharedApplication].keyWindow;
-            #pragma clang diagnostic pop
-        }
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        if (!window) window = [[UIApplication sharedApplication].windows firstObject];
         
-        if (window && window.rootViewController) {
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"NLINE Active"
-                                                                           message:@"iPad Mode & UI Inspector enabled.\n\nInstructions:\n1. Check Logs for 'VC Appeared'\n2. Use the button below to identify the current screen."
-                                                                    preferredStyle:UIAlertControllerStyleAlert];
-            
-            [alert addAction:[UIAlertAction actionWithTitle:@"Identify Top VC" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-                #pragma clang diagnostic push
-                #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                UIWindow *win = [UIApplication sharedApplication].keyWindow;
-                if (!win) win = [[UIApplication sharedApplication].windows firstObject];
-                
-                UIViewController *top = win.rootViewController;
-                while (top.presentedViewController) top = top.presentedViewController;
-                
-                // If it's a navigation controller, get the top visible one
-                if ([top isKindOfClass:[UINavigationController class]]) {
-                    top = [(UINavigationController *)top visibleViewController];
-                }
-                
-                NSString *className = NSStringFromClass([top class]);
-                UIAlertController *idAlert = [UIAlertController alertControllerWithTitle:@"Current VC" message:className preferredStyle:UIAlertControllerStyleAlert];
-                [idAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                
-                [win.rootViewController presentViewController:idAlert animated:YES completion:nil];
-                #pragma clang diagnostic pop
-            }]];
-            
-            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            
-            UIViewController *topVC = window.rootViewController;
-            while (topVC.presentedViewController) topVC = topVC.presentedViewController;
-            [topVC presentViewController:alert animated:YES completion:nil];
-            NSLog(@"[NLINE] Startup alert presented.");
-        }
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
+        btn.frame = CGRectMake(10, 50, 70, 30);
+        btn.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.6];
+        [btn setTitle:@"Identify" forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:12];
+        btn.layer.cornerRadius = 15;
+        
+        // 浮遊ボタンを最前面に追加
+        [window addSubview:btn];
+        [btn addTarget:[NLINEInspector class] action:@selector(identify) forControlEvents:UIControlEventTouchUpInside];
+        #pragma clang diagnostic pop
     });
 }
 
