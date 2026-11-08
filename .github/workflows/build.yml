@@ -12,8 +12,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The Theos SDK archive contains symlinks that macOS 26's unzip refuses to
+      # create in the hosted runner. Git checkout preserves their link metadata.
+      - name: Checkout Theos
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          path: .theos
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Checkout Theos SDKs
+        uses: actions/checkout@v4
+        with:
+          repository: theos/sdks
+          ref: master
+          path: .theos-sdk-source
+          persist-credentials: false
+
+      - name: Install Theos SDKs
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.theos/sdks"
+          find "$GITHUB_WORKSPACE/.theos-sdk-source" -mindepth 1 -maxdepth 1 -type d -name "*.sdk" \
+            -exec cp -R {} "$GITHUB_WORKSPACE/.theos/sdks/" \;
+          test -n "$(find "$GITHUB_WORKSPACE/.theos/sdks" -mindepth 1 -maxdepth 1 -type d -name "*.sdk" -print -quit)"
+
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
+        with:
+          theos-dir: ${{ github.workspace }}/.theos
 
       - name: Build Tweak
         run: |
